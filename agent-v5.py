@@ -3,7 +3,6 @@ import argparse
 from datetime import datetime
 
 # Configuration
-LM_STUDIO_URL = ""
 MODEL_NAME=""
 
 def get_prompt(file_handle):
@@ -79,11 +78,11 @@ def get_prompt(file_handle):
         print("Invalid choice. Please select 1, 2, 3, 4, or 5.")
         return get_prompt(file_handle)
 
-def send_to_llm(prompt, model_name, file_handle):
+def send_to_llm(prompt, model_name, model_url, file_handle):
     """Send the prompt to the LLM API and print the result."""
     try:
         response = requests.post(
-            f"{LM_STUDIO_URL}/api/v1/chat",
+            f"{model_url}/api/v1/chat",
             json={
                 "model": model_name,
                 "input": prompt,
@@ -113,15 +112,29 @@ def send_to_llm(prompt, model_name, file_handle):
     except requests.exceptions.RequestException as e:
         print(f"API error: {e}")
 
-
 def main():
     """Main loop of the application."""
     
-    # --- NEW SECTION: Argument Parsing ---
     parser = argparse.ArgumentParser(description="LLM Chat Script")
+    # Existing argument
     parser.add_argument('--model_name', type=str, help='Name of the model to use')
-    args = parser.parse_args()
+    # New argument added
+    parser.add_argument(
+        '--model_url', 
+        type=str, 
+        required=True,  # <--- THIS MAKES IT MANDATORY
+        help="Mandatory path/URL to the model endpoint."
+    )
     
+    args, unknown = parser.parse_known_args() 
+    MODEL_URL = args.model_url 
+
+    if not MODEL_URL: 
+        # This block will only trigger if you set required=False in argparse
+        print("Error: --model_url is required.", file=sys.stderr)
+        sys.exit(1)
+    
+    # --- Logic to handle MODEL_NAME ---
     # Check if --model_name was provided in the command line
     if args.model_name:
         MODEL_NAME = args.model_name  # Use CLI argument
@@ -129,9 +142,7 @@ def main():
     else:
         # Only ask for input if no model was specified on the command line
         MODEL_NAME = input("Enter your preferred Model Name (e.g., qwen/qwen3.5-9b): ").strip()
-    
-    # --- END NEW SECTION ---
-    # --- MODIFIED LOGGING SETUP ---
+
     session_start_time = datetime.now()
     timestamp_str = session_start_time.strftime("%Y-%m-%d_%H-%M-%S")
     log_filename = f"agent{timestamp_str}.log"
@@ -149,15 +160,15 @@ def main():
             if not prompt:
                 continue
             
-            # 3. Pass the file handle as an argument to send_to_llm
-            send_to_llm(prompt, MODEL_NAME, file_handle=log_file)
+            # 3. Pass the file handle AND MODEL_URL to send_to_llm
+            # Note: Ensure your send_to_llm function accepts the 'model_url' parameter
+            send_to_llm(prompt, MODEL_NAME, model_url=MODEL_URL, file_handle=log_file)
 
     except Exception as e:
         print(f"An error occurred in the loop: {e}")
     finally:
         # 4. Close the file handle to prevent resource leaks
-        log_file.close() 
-
+        log_file.close()
 
 if __name__ == "__main__":
     main()
